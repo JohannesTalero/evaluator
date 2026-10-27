@@ -1,0 +1,16 @@
+# Codex CLI configuration
+# See: https://github.com/openai/codex
+
+[sandbox]
+# workspace-write: can only write inside the project directory
+mode = "workspace-write"
+
+[approval]
+# on-demand: asks for approval on risky operations
+mode = "on-demand"
+
+# NOTE: Network restrictions depend on the Codex CLI version.
+# The sandbox restricts filesystem access; network may be limited
+# to package registries if the version supports it.
+# Never use danger-full-access.
+# TODO(verificar): verify exact network restriction syntax with Codex docs.
