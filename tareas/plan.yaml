@@ -1,0 +1,541 @@
+# Plan de tareas — PRs pequenos (~300 lineas max)
+# Las tareas A1, A2, B1, B2, B3, D1, E1 y F1 estan partidas.
+# Las demas tienen por_partir: true y se dividen cuando llegue su turno.
+
+# --- Epica A: Fundaciones ---
+
+- id: a1.1
+  tarea: A1
+  titulo: "VPC, subnets y networking base"
+  depende_de: []
+  alcance: "infra/**"
+  seguridad: true
+  criterios:
+    - VPC con subnets publicas y privadas en 2 AZs
+    - NAT gateway para acceso saliente desde subnets privadas
+    - Security groups base (API, workers, RDS, ALB)
+  pruebas_borde:
+    - Intentar acceso publico a subnet privada y que falle
+    - Destruir y recrear sin recursos huerfanos
+
+- id: a1.2
+  tarea: A1
+  titulo: "RDS PostgreSQL, S3 y SQS"
+  depende_de: [a1.1]
+  alcance: "infra/**"
+  seguridad: true
+  criterios:
+    - RDS PostgreSQL cifrada con copias automaticas
+    - Buckets S3 privados y cifrados
+    - Cola SQS con cola de errores
+    - Dev y prod usan misma definicion con valores distintos
+  pruebas_borde:
+    - Intentar acceso publico a bucket y que falle
+    - Restaurar copia de la base y verificar datos
+
+- id: a1.3
+  tarea: A1
+  titulo: "Cognito, ECR, ECS Fargate, ALB, CloudFront, Secrets Manager"
+  depende_de: [a1.2]
+  alcance: "infra/**"
+  seguridad: true
+  criterios:
+    - Cognito configurado como proveedor de identidad
+    - ECR para imagenes, ECS Fargate para API y workers
+    - ALB, CloudFront para front, Secrets Manager y KMS
+    - Costo mensual estimado documentado
+  pruebas_borde:
+    - Rotar secreto sin tumbar la API
+    - Cuenta nueva con limites de servicio bajos
+
+- id: a2.1
+  tarea: A2
+  titulo: "CI con GitHub Actions y OIDC"
+  depende_de: [a1.3]
+  alcance: ".github/**, infra/**"
+  seguridad: true
+  criterios:
+    - CI ejecuta lint, tests y build en cada PR
+    - OIDC hacia AWS sin llaves estaticas
+    - Ningun secreto en el repositorio
+  pruebas_borde:
+    - Dependencia con vulnerabilidad conocida
+    - Dos despliegues simultaneos
+
+- id: a2.2
+  tarea: A2
+  titulo: "CD a dev y prod con aprobacion"
+  depende_de: [a2.1]
+  alcance: ".github/**, infra/**"
+  seguridad: true
+  criterios:
+    - Merge a main despliega a dev
+    - Despliegue a prod requiere aprobacion manual
+    - Migraciones corren como parte del despliegue
+    - Rollback documentado y toma minutos
+  pruebas_borde:
+    - Migracion que falla a mitad detiene el despliegue
+    - Rollback despues de aplicar una migracion
+
+# --- Epica B: Datos y API base ---
+
+- id: b1.1
+  tarea: B1
+  titulo: "Tablas core: users, courses, evaluators, criteria, files"
+  depende_de: [a1.3]
+  alcance: "api/migrations/**, api/models/**"
+  seguridad: false
+  criterios:
+    - Tablas users, courses, evaluators, evaluator_versions, criteria, reference_examples, files
+    - Claves primarias/foraneas, restricciones, indices
+    - Usuarios incluyen fecha y version de consentimiento
+  pruebas_borde:
+    - Tildes y emoji en nombres
+    - Criterio con notas existentes no se puede modificar
+
+- id: b1.2
+  tarea: B1
+  titulo: "Tablas de examenes: batches, submissions, transcriptions"
+  depende_de: [b1.1]
+  alcance: "api/migrations/**, api/models/**"
+  seguridad: false
+  criterios:
+    - Tablas batches, submissions, submission_pages, transcriptions
+    - Migraciones adelante y atras en ambiente limpio
+  pruebas_borde:
+    - Examen sin estudiante identificado
+    - Borrar lote y sus archivos
+
+- id: b1.3
+  tarea: B1
+  titulo: "Tablas de notas: grades, audit_log, jobs, model_runs, exports"
+  depende_de: [b1.2]
+  alcance: "api/migrations/**, api/models/**"
+  seguridad: false
+  criterios:
+    - Tablas grades, grade_items, grade_audit_log, jobs, model_runs, exports
+    - Datos de semilla para desarrollo
+    - Consulta de resultados de 40 examenes en menos de 500ms
+  pruebas_borde:
+    - Puntaje fuera de rango
+    - Dos ediciones simultaneas (control de version optimista)
+    - 10000 filas de items de nota
+
+- id: b2.1
+  tarea: B2
+  titulo: "Middleware de autenticacion y validacion de token"
+  depende_de: [a1.3, b1.3]
+  alcance: "api/auth/**, api/deps/**"
+  seguridad: true
+  criterios:
+    - API valida token JWT de Cognito en cada llamada
+    - Dependencia de FastAPI para inyectar usuario autenticado
+    - Intentos fallidos repetidos se limitan
+  pruebas_borde:
+    - Token vencido en medio de subida larga
+    - Correo con mayusculas
+
+- id: b2.2
+  tarea: B2
+  titulo: "Registro, login, logout y recuperacion de clave"
+  depende_de: [b2.1]
+  alcance: "api/auth/**, front/src/auth/**"
+  seguridad: true
+  criterios:
+    - Registro, inicio y cierre de sesion funcionan
+    - Recuperacion de clave funciona
+  pruebas_borde:
+    - Correo sin verificar
+    - Dos pestanas con sesiones distintas
+    - Usuario eliminado con datos existentes
+
+- id: b2.3
+  tarea: B2
+  titulo: "Aislamiento por dueno y tests de acceso cruzado"
+  depende_de: [b2.2]
+  alcance: "api/auth/**, api/tests/**"
+  seguridad: true
+  criterios:
+    - Cada consulta filtra por dueno
+    - Recurso ajeno devuelve 404, no 403
+    - Tests automaticos de acceso cruzado entre dos usuarios
+  pruebas_borde:
+    - Identificador adivinado de otro usuario
+
+- id: b3.1
+  tarea: B3
+  titulo: "API de cursos: CRUD y archivado"
+  depende_de: [b2.3]
+  alcance: "api/routers/**, api/schemas/**, api/tests/**"
+  seguridad: false
+  criterios:
+    - Crear, editar y archivar cursos
+    - Dentro de un curso se ven evaluadores anteriores
+  pruebas_borde:
+    - Nombre vacio o de 300 caracteres
+    - Dos cursos con el mismo nombre
+    - Archivar curso con lote en proceso
+    - Profesor con 50 cursos
+
+- id: b3.2
+  tarea: B3
+  titulo: "Frontend de cursos: lista, creacion, estados vacios, i18n"
+  depende_de: [b3.1]
+  alcance: "front/src/**"
+  seguridad: false
+  criterios:
+    - Lista de cursos al entrar
+    - Boton Nuevo evaluador dentro de un curso
+    - Estados vacios explican que hacer
+    - Textos en espanol con soporte para otros idiomas
+  pruebas_borde:
+    - Emoji en el nombre del curso
+
+# --- Epica D: Carga de archivos ---
+
+- id: d1.1
+  tarea: D1
+  titulo: "URLs prefirmadas, metadata y deduplicacion"
+  depende_de: [a1.3, b2.3]
+  alcance: "api/routers/**, api/services/**, api/tests/**"
+  seguridad: true
+  criterios:
+    - URLs prefirmadas de corta duracion y archivos privados
+    - Tipos permitidos (PDF, JPG, PNG, HEIC convertido)
+    - Hash del archivo para detectar duplicados
+    - Metadata guardada en tabla files
+  pruebas_borde:
+    - Archivo de 0 bytes
+    - Ejecutable renombrado como PDF
+    - El mismo archivo dos veces
+    - URL prefirmada vencida
+
+- id: d1.2
+  tarea: D1
+  titulo: "Componente de subida con progreso y reintento"
+  depende_de: [d1.1]
+  alcance: "front/src/**"
+  seguridad: true
+  criterios:
+    - Subida de varios archivos en paralelo con progreso
+    - Reintento por archivo
+    - Limites de tamano y paginas configurables
+  pruebas_borde:
+    - 200 archivos a la vez
+    - Perdida de conexion a mitad
+    - Nombres con caracteres especiales
+
+# --- Epica E: Golden set y evaluacion ---
+
+- id: e1.1
+  tarea: E1
+  titulo: "Schema del golden set y carga de datos"
+  depende_de: []
+  alcance: "evals/**"
+  seguridad: false
+  criterios:
+    - Esquema para examen, clave, respuestas y notas del profesor
+    - Datos anonimizados y fuera del repositorio
+    - Carga desde S3 privado
+  pruebas_borde:
+    - Hojas con tachones
+    - Respuestas en blanco
+
+- id: e1.2
+  tarea: E1
+  titulo: "Arnes de evaluacion, metricas y comparacion de modelos"
+  depende_de: [e1.1]
+  alcance: "evals/**"
+  seguridad: false
+  criterios:
+    - Comando ejecuta pipeline sobre golden set
+    - Reporta concordancia, exactitud, deteccion de errores y costo
+    - Compara al menos 2 modelos de vision sobre muestra de 3-5 hojas
+  pruebas_borde:
+    - Resultados no deterministas entre corridas
+    - Profesor inconsistente entre examenes
+
+# --- Epica F: Procesamiento asincrono ---
+
+- id: f1.1
+  tarea: F1
+  titulo: "SQS, modelo de trabajos y maquina de estados del lote"
+  depende_de: [a1.3, b1.3]
+  alcance: "api/workers/**, api/models/**, api/tests/**"
+  seguridad: false
+  criterios:
+    - Lanzar lote devuelve de inmediato y encola un trabajo por examen
+    - Estados del lote (en cola, procesando, completo, con errores)
+  pruebas_borde:
+    - Lote de 1 examen y lote de 500
+    - Dos lotes simultaneos del mismo profesor
+
+- id: f1.2
+  tarea: F1
+  titulo: "Worker, progreso visible y control de concurrencia"
+  depende_de: [f1.1]
+  alcance: "api/workers/**, api/tests/**"
+  seguridad: false
+  criterios:
+    - Workers procesan en paralelo con limite de concurrencia configurable
+    - Progreso consultable por la API
+    - Lote de 40 examenes en 15 min o menos
+  pruebas_borde:
+    - Worker que se cae a mitad de un examen
+    - Limite de tasa del proveedor de IA
+
+# --- Tareas por partir ---
+
+- id: c1
+  tarea: C1
+  titulo: "Creacion de evaluador"
+  depende_de: [b3.2, d1.2]
+  alcance: "api/**, front/src/**"
+  seguridad: false
+  por_partir: true
+  criterios:
+    - Formulario guiado por pasos
+    - Acepta PDF e imagen
+    - Con ejemplos exige al menos 3
+  pruebas_borde:
+    - Enunciado de 40 paginas
+    - PDF con contrasena
+    - Solo 2 ejemplos
+
+- id: c2
+  tarea: C2
+  titulo: "Propuesta de criterios por IA y aprobacion"
+  depende_de: [c1, e1.2]
+  alcance: "api/**, front/src/**, evals/**"
+  seguridad: false
+  por_partir: true
+  criterios:
+    - Propuesta sin bloquear pantalla
+    - Profesor edita, agrega, borra, reordena
+    - Version inmutable al aprobar
+  pruebas_borde:
+    - Puntajes que no suman la escala
+    - Editar tras aprobar genera version nueva
+
+- id: d2
+  tarea: D2
+  titulo: "Validacion de calidad al subir"
+  depende_de: [d1.2]
+  alcance: "api/**, front/src/**"
+  seguridad: false
+  por_partir: true
+  criterios:
+    - Nitidez, orientacion, recorte, resolucion minima
+    - Miniaturas marcadas con motivo
+  pruebas_borde:
+    - Hoja rotada 90 o 180 grados
+    - Pagina casi en blanco
+
+- id: d3
+  tarea: D3
+  titulo: "Identificacion del estudiante y agrupacion de paginas"
+  depende_de: [d2, e2]
+  alcance: "api/**, front/src/**"
+  seguridad: false
+  por_partir: true
+  criterios:
+    - Infiere nombre o codigo del encabezado
+    - Marca si no logra identificar
+  pruebas_borde:
+    - Nombre ilegible
+    - Codigos confusos (1 y 7, 0 y O)
+
+- id: e2
+  tarea: E2
+  titulo: "Transcripcion de manuscrito con vision"
+  depende_de: [e1.2]
+  alcance: "api/**, evals/**"
+  seguridad: false
+  por_partir: true
+  criterios:
+    - Salida JSON por examen con pregunta, desarrollo, resultado, confianza
+    - Modelo via adaptador
+    - Registra tokens, costo, latencia
+  pruebas_borde:
+    - Respuestas que cruzan paginas
+    - Tinta tenue
+    - Respuesta tachada y reescrita
+
+- id: e3
+  tarea: E3
+  titulo: "Calificacion por criterio con justificacion y confianza"
+  depende_de: [e2, c2]
+  alcance: "api/**, evals/**"
+  seguridad: false
+  por_partir: true
+  criterios:
+    - Puntaje por criterio escalado a escala del profesor
+    - Justificacion cita al estudiante
+    - Concordancia minimo 90%
+  pruebas_borde:
+    - Procedimiento correcto con resultado incorrecto
+    - Error arrastrado
+
+- id: e4
+  tarea: E4
+  titulo: "Escalamiento por baja confianza y verificacion de citas"
+  depende_de: [e3]
+  alcance: "api/**, evals/**"
+  seguridad: false
+  por_partir: true
+  criterios:
+    - Umbral decide cuando escalar
+    - Requiere revision si duda persiste
+    - Citas verificadas contra transcripcion
+  pruebas_borde:
+    - Alta confianza con nota equivocada
+    - Costo se dispara por umbral mal calibrado
+
+- id: e5
+  tarea: E5
+  titulo: "Medicion y control de costos"
+  depende_de: [e3, b1.3]
+  alcance: "api/**"
+  seguridad: false
+  por_partir: true
+  criterios:
+    - Cada llamada escribe en model_runs
+    - Costo acumulado visible y tope por lote
+  pruebas_borde:
+    - Lote que supera tope a mitad
+    - Reintentos que duplican cobro
+
+- id: f2
+  tarea: F2
+  titulo: "Reintentos, idempotencia y manejo de fallas"
+  depende_de: [f1.2]
+  alcance: "api/**"
+  seguridad: false
+  por_partir: true
+  criterios:
+    - Reintentos con espera creciente
+    - Procesar dos veces no duplica notas ni costos
+    - Cola de errores visible
+  pruebas_borde:
+    - Errores 5xx del proveedor
+    - Mensaje de cola entregado dos veces
+
+- id: g1
+  tarea: G1
+  titulo: "Pantalla de resultados con documento anotado"
+  depende_de: [e3, f1.2]
+  alcance: "front/src/**, api/**"
+  seguridad: false
+  por_partir: true
+  criterios:
+    - Lista de examenes filtrable
+    - Vista dividida: documento y notas
+    - Resultados parciales mientras procesa
+  pruebas_borde:
+    - Examen de 12 paginas
+    - Justificacion muy larga
+
+- id: g2
+  tarea: G2
+  titulo: "Edicion, aceptacion individual y masiva"
+  depende_de: [g1]
+  alcance: "front/src/**, api/**"
+  seguridad: false
+  por_partir: true
+  criterios:
+    - Editar puntaje y justificacion
+    - Aceptacion masiva con confirmacion
+    - Orden por discrepancia
+  pruebas_borde:
+    - Dos ediciones simultaneas
+    - Requiere revision no se acepta en masa
+
+- id: g3
+  tarea: G3
+  titulo: "Auditoria de cambios de nota"
+  depende_de: [b1.3, g2]
+  alcance: "api/**, front/src/**"
+  seguridad: false
+  por_partir: true
+  criterios:
+    - Cada edicion registra quien, cuando, anterior, nuevo, motivo
+    - Historial no se puede modificar ni borrar
+  pruebas_borde:
+    - Edicion que no cambia valor (no se registra)
+    - Distingue actor sistema vs profesor
+
+- id: h1
+  tarea: H1
+  titulo: "Exportacion a Excel, CSV y PDF por estudiante"
+  depende_de: [g2]
+  alcance: "api/**, front/src/**"
+  seguridad: false
+  por_partir: true
+  criterios:
+    - Excel/CSV con fila por estudiante y columna por criterio
+    - PDF por estudiante con original y justificaciones
+    - Generacion asincrona con enlace temporal
+  pruebas_borde:
+    - Nombres con comas y tildes
+    - Celdas con = + - @ neutralizadas
+
+- id: h2
+  tarea: H2
+  titulo: "Informe de analisis por pregunta y grupo"
+  depende_de: [g2]
+  alcance: "api/**, front/src/**"
+  seguridad: false
+  por_partir: true
+  criterios:
+    - Promedio y distribucion por pregunta
+    - Errores frecuentes agrupados con ejemplos
+  pruebas_borde:
+    - Lote de 3 examenes (aviso de poca muestra)
+    - Pregunta que nadie respondio
+
+- id: i1
+  tarea: I1
+  titulo: "Observabilidad y alertas"
+  depende_de: [a2.2]
+  alcance: "api/**, infra/**, front/src/**"
+  seguridad: false
+  por_partir: true
+  criterios:
+    - Registros estructurados con ID de lote y examen
+    - Metricas de duracion, tasa de error, cola, costo
+    - Alarmas configuradas
+    - Registros no contienen contenido de examenes
+  pruebas_borde:
+    - Dato personal en registro por accidente
+
+- id: i2
+  tarea: I2
+  titulo: "Seguridad, privacidad y consentimiento"
+  depende_de: [b2.3]
+  alcance: "api/**, front/src/**, infra/**"
+  seguridad: true
+  por_partir: true
+  criterios:
+    - Texto de consentimiento aprobado y registrado
+    - Buckets privados y cifrado verificados
+    - Borrado de lote y archivos funciona
+    - Lista de verificacion de seguridad firmada
+  pruebas_borde:
+    - Profesor rechaza consentimiento
+    - Borrar lote mientras procesa
+
+- id: i3
+  tarea: I3
+  titulo: "Piloto con el profesor y medicion"
+  depende_de: [a2.2, b2.3, b3.2, c2, d3, e4, e5, f1.2, f2, g2, g3, i1, i2]
+  alcance: "evals/**, docs/**"
+  seguridad: false
+  por_partir: true
+  criterios:
+    - Profesor usa el producto sin ayuda del equipo
+    - Concordancia minimo 90%, meta 95%
+    - Tiempo, costo y ediciones medidos
+    - Disposicion a pagar documentada
+  pruebas_borde:
+    - Profesor se atasca en un paso
+    - Fotos de mala calidad con celular
