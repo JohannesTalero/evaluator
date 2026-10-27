@@ -1,0 +1,55 @@
+name: Tarea del plan
+description: Issue para una entrada del plan de tareas
+labels: []
+body:
+  - type: input
+    id: task-id
+    attributes:
+      label: ID
+      description: Identificador de la entrada en tareas/plan.yaml
+      placeholder: "d1.2"
+    validations:
+      required: true
+
+  - type: input
+    id: alcance
+    attributes:
+      label: Alcance
+      description: Globs de archivos permitidos (se copia a la linea alcance del PR)
+      placeholder: "api/**, api/tests/**"
+    validations:
+      required: true
+
+  - type: input
+    id: depende-de
+    attributes:
+      label: Depende de
+      description: IDs de las entradas que deben estar en main antes de empezar
+      placeholder: "a1.1, b1.1"
+
+  - type: dropdown
+    id: seguridad
+    attributes:
+      label: Seguridad
+      description: Requiere revision de seguridad?
+      options:
+        - "false"
+        - "true"
+    validations:
+      required: true
+
+  - type: textarea
+    id: criterios
+    attributes:
+      label: Criterios de aprobacion
+      description: Tomados de docs/proyecto.md
+    validations:
+      required: true
+
+  - type: textarea
+    id: pruebas-borde
+    attributes:
+      label: Pruebas borde
+      description: Casos limite que deben probarse
+    validations:
+      required: true
