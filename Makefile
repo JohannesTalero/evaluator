@@ -1,4 +1,4 @@
-.PHONY: check check-rapido check-api check-front check-infra traspaso issues issues-crear
+.PHONY: check check-rapido check-api check-front check-infra traspaso issues issues-crear relevo
 
 check:
 	@bash scripts/check.sh
@@ -23,3 +23,6 @@ issues:
 
 issues-crear:
 	@uv run --with pyyaml python scripts/issues.py --crear
+
+relevo:
+	@bash scripts/relevo.sh

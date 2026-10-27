@@ -1,0 +1,19 @@
+# Patrones para detectar corte por cuota/limite de los agentes.
+# Uno por linea. Lineas vacias y comentarios (#) se ignoran.
+# Si la salida del agente contiene alguno de estos textos (case-insensitive),
+# se clasifica como "sin cuota".
+rate limit
+rate_limit
+quota exceeded
+token limit
+usage limit
+over_quota
+billing limit
+capacity exceeded
+too many requests
+resource_exhausted
+context window full
+context limit
+max tokens
+credit limit
+spending limit

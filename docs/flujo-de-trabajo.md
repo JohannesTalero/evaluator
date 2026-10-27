@@ -77,6 +77,17 @@ Las capas, de la más suave a la más dura:
 | Los dos agentes chocan en un archivo | Señal de mala partición: rebase del que llegó segundo y ajusta el plan |
 | El mismo error se repite | No lo corrijas a mano cada vez: conviértelo en regla de `AGENTS.md`, en hook o en test (PR `soporte`) |
 
+## Relevo automático
+
+`make relevo ISSUE=<N>` lanza un agente sin interfaz y, si se queda sin cuota, pasa el turno al otro automáticamente. Variables opcionales: `EMPIEZA=claude|codex` (por defecto claude) y `MAX_RELEVOS=3`.
+
+- **Cuándo usarlo:** un issue a la vez, bien definido, con alcance claro. Ideal para tareas que uno solo no puede terminar por cuota.
+- **Qué no hace:** no hace push, no abre PRs, no hace merge. Esos pasos siguen siendo tuyos (o de `/cerrar-pr`).
+- **Qué riesgo tiene:** la detección del límite depende de un mensaje de texto que puede cambiar. Si el proveedor cambia el mensaje, el relevo puede fallar.
+- **Cómo actualizar los patrones:** edita `scripts/relevo-patrones.txt` (un patrón por línea, ignorando comentarios). No hace falta tocar el código.
+- **Candado:** crea `progreso/.relevo-<ID>.lock` para evitar dos relevos simultáneos sobre el mismo issue. Se limpia al salir, incluso con Ctrl+C.
+- **Bitácora:** cada acción queda en `progreso/relevo-<ID>.log` con hora, agente, resultado y commit. Nunca registra la salida completa de los agentes.
+
 ## Cómo evoluciona este sistema
 
 Cada error repetido de un agente es una señal para endurecer el sistema, no un mal día. Regla práctica:

@@ -87,3 +87,4 @@ Si te quedas sin cuota o sin contexto a mitad de tarea:
 | `make check-rapido` | Lint y tests, sin escáneres |
 | `make check-api` / `check-front` / `check-infra` | Solo un área |
 | `make traspaso` | Genera la nota de traspaso de la rama actual |
+| `make relevo ISSUE=<N>` | Relevo automático entre agentes (ver docs/flujo-de-trabajo.md) |
